@@ -1,0 +1,264 @@
+<!--
+@license
+Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+
+<link rel="import" href="../bower_components/polymer/polymer.html">
+<link rel="import" href="../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../bower_components/paper-toast/paper-toast.html">
+<link rel="import" href="../bower_components/paper-fab/paper-fab.html">
+<link rel="import" href="shared-styles.html">
+<link rel="import" href="howler.html">
+
+<dom-module id="my-bluetooth">
+  <template>
+    <howler />
+    <style include="shared-styles">
+      :host {
+        display: block;
+
+        padding: 10px;
+      }
+
+      paper-fab {
+        position: fixed;
+        bottom: 28px;
+        right: calc(50% - 25.5px);
+        transform: none;
+        transition-duration: 500ms;
+      }
+
+      .bluetooth {
+        --paper-fab-background: rgba(34,96,165,1);
+        --paper-fab-keyboard-focus-background: rgba(34,96,165,1);
+      }
+
+      .bluetooth.remove {
+        transform: translateY(100px);
+        transition-duration: 500ms;
+      }
+
+      .transition-remove {
+        transform: translateY(100px);
+        transition-duration: 500ms;
+      }
+
+      #drumset {
+        max-height: 500px;
+        max-width: 100%;
+      }
+
+      .disconnect {
+        --paper-fab-background: var(--paper-red-700);
+        --paper-fab-keyboard-focus-background: var(--paper-red-700);
+      }
+    </style>
+
+    <div class="card">
+      <img id="drumset" src="../images/drum.jpg" /> 
+    </div>
+
+    <paper-fab icon="bluetooth-searching" class="bluetooth novalia" hidden$="{{connected}}"></paper-fab>
+    <paper-fab icon="close" class="disconnect transition-remove" hidden$="{{!connected}}"></paper-fab>
+
+  </template>
+
+  <script>
+    class Novalia {
+
+      constructor() {
+        this.device = null;
+        this.onDisconnected = this.onDisconnected.bind(this);
+      }
+      
+      request() {
+        let options = {
+          "filters": [{
+            "services": ["03b80e5a-ede8-4b33-a751-6ce34ec4c700"]
+          }]
+        };
+        return navigator.bluetooth.requestDevice(options)
+        .then(device => {
+          this.device = device;
+          this.device.addEventListener('gattserverdisconnected', this.onDisconnected);
+        });
+      }
+      
+      connect() {
+        if (!this.device) {
+          return Promise.reject('Device is not connected.');
+        }
+        return this.device.gatt.connect();
+      }
+      
+      readTouch() {
+        return this.device.gatt.getPrimaryService("03b80e5a-ede8-4b33-a751-6ce34ec4c700")
+        .then(service => service.getCharacteristic("7772e5db-3868-4112-a1a9-f2669d106bf3"))
+        .then(characteristic => characteristic.readValue());
+      }
+
+      startTouchNotifications(listener) {
+        return this.device.gatt.getPrimaryService("03b80e5a-ede8-4b33-a751-6ce34ec4c700")
+        .then(service => service.getCharacteristic("7772e5db-3868-4112-a1a9-f2669d106bf3"))
+        .then(characteristic => characteristic.startNotifications())
+        .then(characteristic => characteristic.addEventListener('characteristicvaluechanged', listener));
+      }
+
+      stopTouchNotifications(listener) {
+        return this.device.gatt.getPrimaryService("03b80e5a-ede8-4b33-a751-6ce34ec4c700")
+        .then(service => service.getCharacteristic("7772e5db-3868-4112-a1a9-f2669d106bf3"))
+        .then(characteristic => characteristic.stopNotifications())
+        .then(characteristic => characteristic.removeEventListener('characteristicvaluechanged', listener));
+      }
+
+      disconnect() {
+        if (!this.device) {
+          return Promise.reject('Device is not connected.');
+        }
+        return this.device.gatt.disconnect();
+      }
+
+      onDisconnected() {
+        console.log('Device is disconnected.');
+      }
+    }
+
+
+    Polymer({
+      is: 'my-bluetooth',
+      sounds: {},
+      properties: {
+        connected: { type: Boolean, value: false }
+      },
+      ready: function () {
+
+        // listen for online/offline
+        Polymer.RenderStatus.afterNextRender(this, function() {
+          this.listen(window, 'online', '_notifyNetworkStatus');
+          this.listen(window, 'offline', '_notifyNetworkStatus');
+        });
+
+        var self = this;
+        var button = this.$$('.novalia');
+        var disconnect = this.$$('.disconnect');
+
+        var novalia = new Novalia();
+
+        button.addEventListener('click', function() {
+          novalia.request()
+            .then(_ => novalia.connect())
+            .then(_ => {
+              self.connected = true;
+              button.classList.toggle('transition-remove', true);
+              setTimeout(function () {
+                disconnect.classList.toggle('transition-remove', false);
+              }, 500);
+
+              novalia.startTouchNotifications((event) => {
+                let value = event.target.value;
+                let instrumentVal = value.getUint8(3);
+                let stateVal = value.getUint8(4);
+                let instrument;
+
+                switch (instrumentVal) {
+                  case 70:
+                    instrument = 'drums-bass';
+                    break;
+                  case 63:
+                    instrument = 'drums-clap';
+                    break;
+                  case 61:
+                    instrument = 'drums-floor-tom';
+                    break;
+                  case 60:
+                    instrument = 'drums-high-hat';
+                    break;
+                  case 62:
+                    instrument = 'drums-ride';
+                    break;
+                  case 59:
+                    instrument = 'drums-snare';
+                    break;
+                  case 58:
+                    instrument = 'drums-tom-1';
+                    break;
+                }
+                //left cymbol 70
+                //drum 63
+                //drum 61
+                //drum 60
+                //big drum on floor 62
+                //drum 59
+                //right cymbol 58
+
+                var pressed = stateVal === 127 ? true : false;
+
+                if (pressed) {
+                  console.log('Playing ', instrument);
+                  self.sounds[instrument].play();
+                }
+              })
+            })
+            .catch(error => { console.log(error) });
+        });
+
+        novalia.onDisconnected = function () {
+          self.connected = false;
+          disconnect.classList.toggle('transition-remove', true);
+          setTimeout(function () {
+            button.classList.toggle('transition-remove', false);
+          }, 500);
+        }
+
+        disconnect.addEventListener('click', function() {
+          novalia.disconnect();
+        });
+
+        
+
+        //go and get our sound files
+        //should our custom element do this?
+        [
+          'drums-bass',
+          'drums-clap',
+          'drums-floor-tom',
+          'drums-high-hat',
+          'drums-ride',
+          'drums-snare',
+          'drums-tom-1',
+          'drums-tom-2'
+        ].forEach((key) => {
+          self.sounds[key] = new Howl({
+            src: ['./sounds/' + key + '.wav'],
+            autoplay: false,
+            loop: false,
+            volume: 1,
+            onend: function() {
+              console.log('Finished! ' + key);
+            }
+          });
+        });
+      },
+      _notifyNetworkStatus: function() {
+        var oldOffline = this.offline;
+        this.offline =  !navigator.onLine;
+        // Show the snackbar if the user is offline when starting a new session
+        // or if the network status changed.
+        if (this.offline || (!this.offline && oldOffline === true)) {
+          if (!this._networkToast) {
+            this._networkToast = document.createElement('paper-toast');
+            Polymer.dom(this.root).appendChild(this._networkToast);
+          }
+          Polymer.dom(this._networkToast).innerHTML = this.offline ?
+              'You are offline' : 'You are online';
+          this._networkToast.open();
+        }
+      },
+    });
+  </script>
+</dom-module>
