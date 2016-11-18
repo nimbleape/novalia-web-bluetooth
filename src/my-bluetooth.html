@@ -78,10 +78,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       
       request() {
         let options = {
-          "filters": [{
-            // "services": ["03b80e5a-ede8-4b33-a751-6ce34ec4c700"]
-            "services": ["0xFEAA"]
-          }]
+          "filters": [
+            {
+              "services": [0xfeaa]
+            },
+            {
+              "services": ["03b80e5a-ede8-4b33-a751-6ce34ec4c700"]
+            }
+          ],
+          "optionalServices": ["03b80e5a-ede8-4b33-a751-6ce34ec4c700"]
         };
         return navigator.bluetooth.requestDevice(options)
         .then(device => {
@@ -166,36 +171,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 let stateVal = value.getUint8(4);
                 let instrument;
 
+                console.log(instrumentVal);
+
                 switch (instrumentVal) {
                   case 70:
-                    instrument = 'drums-bass';
-                    break;
-                  case 63:
                     instrument = 'drums-clap';
                     break;
-                  case 61:
-                    instrument = 'drums-floor-tom';
-                    break;
-                  case 60:
+                  case 64:
                     instrument = 'drums-high-hat';
                     break;
-                  case 62:
-                    instrument = 'drums-ride';
-                    break;
-                  case 59:
+                  case 63:
                     instrument = 'drums-snare';
                     break;
-                  case 58:
+                  case 61:
                     instrument = 'drums-tom-1';
                     break;
+                  case 60:
+                    instrument = 'drums-tom-2';
+                    break;
+                  case 62:
+                    instrument = 'drums-bass';
+                    break;
+                  case 59:
+                    instrument = 'drums-floor-tom';
+                    break;
+                  default://for dev board
+                  case 58:
+                    instrument = 'drums-ride';
+                    break;
                 }
-                //left cymbol 70
-                //drum 63
-                //drum 61
-                //drum 60
-                //big drum on floor 62
-                //drum 59
-                //right cymbol 58
 
                 var pressed = stateVal === 127 ? true : false;
 
